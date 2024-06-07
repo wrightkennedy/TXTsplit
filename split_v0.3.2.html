@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Text Splitter Tool v0.3.2</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.6.0/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            padding: 20px;
+            color: #333;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            display: flex;
+            justify-content: space-between;
+            width: 90%;
+            margin-top: 20px;
+        }
+        .column {
+            flex: 1;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            margin: 0 10px;
+        }
+        h1 {
+            color: #0056b3;
+        }
+        button {
+            background-color: #0056b3;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px 0;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #003d80;
+        }
+        input, select {
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            width: 100%;
+        }
+        label {
+            font-weight: bold;
+        }
+        .action-buttons {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Text Document Splitter v0.3.2</h1>
+    <div class="container">
+        <div class="column">
+            <h2>Input</h2>
+            <label for="fileInput">Text File to Split:</label>
+            <input type="file" id="fileInput" accept=".txt">
+            <select id="tokenSize">
+                <option value="1000">1000 tokens</option>
+                <option value="2000">2000 tokens</option>
+                <option value="4000">4000 tokens</option>
+                <option value="8000">8000 tokens</option>
+                <option value="16000">16000 tokens</option>
+            </select>
+        </div>
+        <div class="column">
+            <h2>Output</h2>
+            <label for="fileNamePrefix">Output Prefix Name:</label>
+            <div class="flex-row">
+                <input type="text" id="fileNamePrefix" placeholder="Output Prefix Name">
+                <span class="suffix">_part01.txt</span>
+            </div>
+        </div>
+    </div>
+    <div class="action-buttons">
+        <button onclick="splitFile()">Split File</button>
+        <button onclick="location.reload();">Reset</button>
+    </div>
+    <div id="downloadLinks"></div>
+    <button id="downloadAllButton" style="display:none;">Download All</button>
+
+    <script>
+        function splitFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            const fileNamePrefix = document.getElementById('fileNamePrefix').value || file.name.split('.')[0];
+            if (!file) {
+                alert('Please select a file.');
+                return;
+            }
+    
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const text = event.target.result;
+                const tokenSize = parseInt(document.getElementById('tokenSize').value);
+                const tokens = preserveTokenize(text);
+                const parts = chunkTokens(tokens, tokenSize);
+    
+                const downloadLinks = document.getElementById('downloadLinks');
+                downloadLinks.innerHTML = ''; // Clear previous links
+                const zip = new JSZip();
+    
+                parts.forEach((part, index) => {
+                    const partName = `${fileNamePrefix}_part${String(index + 1).padStart(2, '0')}.txt`;
+                    const blob = new Blob([part], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.textContent = `Download ${partName}`;
+                    a.download = partName;
+                    a.style.display = 'block';
+                    downloadLinks.appendChild(a);
+                    zip.file(partName, part);
+                });
+
+                // Add "Download All" button
+                document.getElementById('downloadAllButton').style.display = 'inline';
+                document.getElementById('downloadAllButton').onclick = function() {
+                    zip.generateAsync({type:"blob"}).then(function(content) {
+                        saveAs(content, `${fileNamePrefix}_all_parts.zip`);
+                    });
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function preserveTokenize(text) {
+            let tokens = [];
+            let currentToken = '';
+            Array.from(text).forEach(char => {
+                if (char.match(/\s/)) {
+                    if (currentToken) {
+                        tokens.push(currentToken);
+                        currentToken = '';
+                    }
+                    tokens.push(char);
+                } else {
+                    currentToken += char;
+                }
+            });
+            if (currentToken) {
+                tokens.push(currentToken);
+            }
+            return tokens;
+        }
+    
+        function chunkTokens(tokens, tokenSize) {
+            let chunks = [];
+            let currentChunk = '';
+            let count = 0;
+            
+            tokens.forEach(token => {
+                if (count + token.length > tokenSize && (token === ' ' || token === '\n')) {
+                    chunks.push(currentChunk);
+                    currentChunk = '';
+                    count = 0;
+                }
+                currentChunk += token;
+                count++;
+            });
+
+            if (currentChunk) {
+                chunks.push(currentChunk);
+            }
+            return chunks;
+        }
+        document.getElementById('fileInput').addEventListener('change', function() {
+            var fileName = this.files[0].name.split('.')[0];
+            document.getElementById('fileNamePrefix').placeholder = fileName;
+        });
+    </script>
+
+
+</body>
+</html>
